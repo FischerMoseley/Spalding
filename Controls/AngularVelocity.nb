@@ -1,0 +1,126 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 11.3' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      3655,        116]
+NotebookOptionsPosition[      3233,        100]
+NotebookOutlinePosition[      3574,        115]
+CellTagsIndexPosition[      3531,        112]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[BoxData[
+ RowBox[{"Solve", "[", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"x", "\[Equal]", 
+      RowBox[{"r", "*", 
+       RowBox[{"Sin", "[", "theta", "]"}], "*", 
+       RowBox[{"(", 
+        RowBox[{"omega1", "-", 
+         RowBox[{
+          RowBox[{"1", "/", "2"}], "*", "omega2"}], "-", 
+         RowBox[{
+          RowBox[{"1", "/", "2"}], "*", "omega3"}]}], ")"}]}]}], ",", " ", 
+     RowBox[{"y", "==", 
+      RowBox[{"r", "*", 
+       RowBox[{"Sin", "[", "theta", "]"}], "*", 
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{"Sqrt", "[", "3", "]"}], "/", "2"}], ")"}], "*", 
+       RowBox[{"(", 
+        RowBox[{"omega3", "-", "omega2"}], ")"}]}]}], ",", " ", 
+     RowBox[{"oemgaz", "\[Equal]", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{"r", "/", "R"}], ")"}], "*", 
+       RowBox[{"Cos", "[", "theta", "]"}], "*", 
+       RowBox[{"(", 
+        RowBox[{"omega1", "+", "omega2", "+", "omega3"}], ")"}]}]}]}], "}"}], 
+   ",", " ", 
+   RowBox[{"{", 
+    RowBox[{"omega1", ",", "omega2", ",", "omega3"}], "}"}]}], "]"}]], "Input",
+ CellChangeTimes->{{3.7696223665707817`*^9, 3.7696224423112545`*^9}, {
+  3.7696224841876535`*^9, 3.7696226317994847`*^9}},
+ CellLabel->"In[1]:=",ExpressionUUID->"b6c41e93-3e38-449e-a74b-74662880c9a0"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"omega1", "\[Rule]", 
+     RowBox[{"-", 
+      FractionBox[
+       RowBox[{
+        RowBox[{
+         RowBox[{"-", "2"}], " ", "x", " ", 
+         RowBox[{"Csc", "[", "theta", "]"}]}], "-", 
+        RowBox[{"oemgaz", " ", "R", " ", 
+         RowBox[{"Sec", "[", "theta", "]"}]}]}], 
+       RowBox[{"3", " ", "r"}]]}]}], ",", 
+    RowBox[{"omega2", "\[Rule]", 
+     RowBox[{"-", 
+      FractionBox[
+       RowBox[{
+        RowBox[{"x", " ", 
+         RowBox[{"Csc", "[", "theta", "]"}]}], "+", 
+        RowBox[{
+         SqrtBox["3"], " ", "y", " ", 
+         RowBox[{"Csc", "[", "theta", "]"}]}], "-", 
+        RowBox[{"oemgaz", " ", "R", " ", 
+         RowBox[{"Sec", "[", "theta", "]"}]}]}], 
+       RowBox[{"3", " ", "r"}]]}]}], ",", 
+    RowBox[{"omega3", "\[Rule]", 
+     RowBox[{"-", 
+      FractionBox[
+       RowBox[{
+        RowBox[{"x", " ", 
+         RowBox[{"Csc", "[", "theta", "]"}]}], "-", 
+        RowBox[{
+         SqrtBox["3"], " ", "y", " ", 
+         RowBox[{"Csc", "[", "theta", "]"}]}], "-", 
+        RowBox[{"oemgaz", " ", "R", " ", 
+         RowBox[{"Sec", "[", "theta", "]"}]}]}], 
+       RowBox[{"3", " ", "r"}]]}]}]}], "}"}], "}"}]], "Output",
+ CellChangeTimes->{3.769622632665825*^9},
+ CellLabel->"Out[1]=",ExpressionUUID->"4c9a93c7-d009-4ffb-a5cb-a6d5ba3dd504"]
+}, Open  ]]
+},
+WindowSize->{766, 772},
+WindowMargins->{{Automatic, -7}, {Automatic, 0}},
+FrontEndVersion->"11.3 for Microsoft Windows (64-bit) (March 6, 2018)",
+StyleDefinitions->"Default.nb"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 1275, 34, 67, "Input",ExpressionUUID->"b6c41e93-3e38-449e-a74b-74662880c9a0"],
+Cell[1858, 58, 1359, 39, 223, "Output",ExpressionUUID->"4c9a93c7-d009-4ffb-a5cb-a6d5ba3dd504"]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)
+
