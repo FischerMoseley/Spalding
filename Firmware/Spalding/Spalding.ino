@@ -27,20 +27,9 @@ motor from the z-axis. You choose this angle, but the microcontroller doesn't ca
 #define StepsPerRotation 200
 #define StepperMaxSpeed 100
 
-AF_Stepper motor1(StepsPerRotation, 1);
-AF_Stepper motor2(StepsPerRotation, 1);
-AF_Stepper motor3(StepsPerRotation, 1);
-
-void forwardstep1() {motor1.onestep(FORWARD, SINGLE);}
-void backwardstep1() {motor1.onestep(BACKWARD, SINGLE);}
-void forwardstep2() {motor2.onestep(FORWARD, SINGLE);}
-void backwardstep2() {motor2.onestep(BACKWARD, SINGLE);}
-void forwardstep3() {motor3.onestep(FORWARD, SINGLE);}
-void backwardstep3() {motor3.onestep(BACKWARD, SINGLE);}
-
-AccelStepper stepper1(forwardstep1, backwardstep1);
-AccelStepper stepper2(forwardstep2, backwardstep2);
-AccelStepper stepper3(forwardstep3, backwardstep3);
+AccelStepper stepper1(AccelStepper::DRIVER, 9, 8);
+AccelStepper stepper2(AccelStepper::DRIVER, 11,10);
+AccelStepper stepper3(AccelStepper::DRIVER, 13,12);
 
 
 float ConvertToAngular(float* new_vector, float* return_array){
