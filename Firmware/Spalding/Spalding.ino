@@ -19,6 +19,7 @@ motor from the z-axis. You choose this angle, but the microcontroller doesn't ca
 #include <PID_v1.h>
 #include <Wire.h>
 #include "SparkFun_BNO080_Arduino_Library.h"
+#include <math.h>
 
 //using theta = pi/4
 #define sec_theta 1.41421356237
@@ -29,15 +30,17 @@ motor from the z-axis. You choose this angle, but the microcontroller doesn't ca
 #define sqrt3 1.73205080757 
 
 /*--------------- State Variables -----------------*/
+struct eulerAngle{ double yaw; double pitch; double roll; };
+eulerAngle rotationVector;
+eulerAngle gyroRate;
 
-double gyroPosition[3]; //literally have no idea how to get an euler output, just quaternions at the moment
-double gyroRate[3]; //in the form x-axis rad/sec, y-axis rad/sec, z-axis rad/sec
-double stateVector[3]; //in the form x-translation, y-translation, z-rotation
+struct stateVector { double v_x; double v_y; double w_z; };
+stateVector controlVector;
 
 /*------------- Hardware Configuration ----------- */
 //Stepper motor configuration
 #define STEPS_PER_REV 200
-#define STEPPER_MAX_SPEED 1000
+#define STEPPER_MAX_SPEED 10000
 AccelStepper stepper1(1, 3, 2);
 AccelStepper stepper2(1, 5, 4);
 AccelStepper stepper3(1, 6, 7);
@@ -45,36 +48,59 @@ AccelStepper stepper3(1, 6, 7);
 //IMU configuration
 BNO080 IMU;
 
-//PID configuration
-double xSetpoint = 0;
-double ySetpoint = 0;
-
-//define tuning parameters
-double kP = 100;
-double kI = 0;
-double kD = 0;
+struct PIDconfigContainer { 
+  double yawSetpoint = 0;
+  double pitchSetpoint = 0;
+  double rollSetpoint = 90;
+  double K_p = 600;
+  double K_i = 0;
+  double K_d = 0;
+} PIDconfig;
 
 //Specify links and initial tuning parameters
-PID xAxisPID(&gyroRate[0], &stateVector[0], &xSetpoint, kP, kI, kD, DIRECT);
-PID yAxisPID(&gyroRate[1], &stateVector[1], &ySetpoint, kP, kI, kD, DIRECT);
+//PID yawPID  (&rotationVector.yaw,   &controlVector.w_z, &PIDconfig.yawSetpoint,   PIDconfig.K_p, PIDconfig.K_i, PIDconfig.K_d, DIRECT);
+PID pitchPID(&rotationVector.pitch, &controlVector.v_y, &PIDconfig.pitchSetpoint, PIDconfig.K_p, PIDconfig.K_i, PIDconfig.K_d, DIRECT);
+PID rollPID (&rotationVector.roll,  &controlVector.v_x, &PIDconfig.rollSetpoint,  PIDconfig.K_p, PIDconfig.K_i, PIDconfig.K_d, DIRECT);
 
 
 /*------------- Wrapper Functions ----------- */
-
-void updateGyroStateVariables(double gyroRate[]){
+void updateRotationVector(struct eulerAngle* rotationVector){
   if(IMU.dataAvailable()){
-    gyroRate[0] = IMU.getAccelX();
-    gyroRate[1] = IMU.getAccelY();
-    gyroRate[2] = IMU.getAccelZ();
+    float i = IMU.getQuatI();
+    float j = IMU.getQuatJ();
+    float k = IMU.getQuatK();
+    float r = IMU.getQuatReal();
+    float x; float y;
+
+    /* YAW */ 
+    x = 2 * ((i * j) + (r * k)); 
+    y = square(r) - square(k) - square(j) + square(i); 
+    rotationVector->yaw = degrees(atan2(y, x));
+
+    /* PITCH */ 
+    rotationVector->pitch = degrees(asin(-2 * (i * k - j * r)));
+
+    /* ROLL */ 
+    x = 2 * ((j * k) + (i * r)); 
+    y = square(r) + square(k) - square(j) - square(i); 
+    rotationVector->roll = degrees(atan2(y , x));
   }
 }
 
-void updateStepperSpeeds(double stateVector[]){
-  double stepperSpeeds[3];
-  double x = stateVector[0];
-  double y = stateVector[1];
-  double w_z = stateVector[2];
+void updateGyroRate(struct eulerAngle* angleVariable){
+  if(IMU.dataAvailable()){
+    angleVariable->yaw    =  IMU.getGyroX();
+    angleVariable->pitch  =  IMU.getGyroY();
+    angleVariable->roll   =  IMU.getGyroZ();
+  }
+}
 
+void updateStepperSpeeds(struct stateVector* controlVector){
+  double x = controlVector->v_x;
+  double y = -1*controlVector->v_y; //negative to compensate for the fact that the IMU's axes are orientented differently
+  double w_z = controlVector->w_z;
+
+  double stepperSpeeds[3];
   stepperSpeeds[0] = (-2*x*csc_theta - w_z*ball_radius*sec_theta)/(3*wheel_radius);
   stepperSpeeds[1] = ((x + sqrt3*y)*csc_theta - w_z*ball_radius*sec_theta)/(3*wheel_radius);
   stepperSpeeds[2] = ((x - sqrt3*y)*csc_theta - w_z*ball_radius*sec_theta)/(3*wheel_radius);
@@ -88,23 +114,25 @@ void updateStepperSpeeds(double stateVector[]){
   stepper3.runSpeed();
 }
 
-void printStateVector(double stateVector[]){
-  Serial.print("Gyro StateVector: X: ");
-  Serial.print(stateVector[0]);
-  Serial.print("  Y: ");
-  Serial.print(stateVector[1]);
+void printControlVector(struct stateVector* controlVector){
+  Serial.print("ControlVector: v_x: ");
+  Serial.print(controlVector->v_x);
+  Serial.print("  v_y: ");
+  Serial.print(controlVector->v_y);
   Serial.print("  ω_Z: ");
-  Serial.print(stateVector[2]);
+  Serial.print(controlVector->w_z);
   Serial.println();
 }
 
 void setup() {
   //start up all them interfaces
   Serial.begin(115200);
+
   Wire.begin();
   Wire.setClock(400000);
+
   IMU.begin();
-  IMU.enableAccelerometer(20); //Send data update every 20ms
+  IMU.enableRotationVector(10);
 
   //set all the max motor speeds
   stepper1.setMaxSpeed(STEPPER_MAX_SPEED);	
@@ -112,22 +140,24 @@ void setup() {
   stepper3.setMaxSpeed(STEPPER_MAX_SPEED);
 
   //turn on PID
-  xAxisPID.SetOutputLimits(-1000, 1000);
-  yAxisPID.SetOutputLimits(-1000, 1000);
-  xAxisPID.SetMode(AUTOMATIC);
-  yAxisPID.SetMode(AUTOMATIC);
+  //yawPID.SetOutputLimits(-1000, 1000);
+  pitchPID.SetOutputLimits(-1000, 1000);
+  rollPID.SetOutputLimits(-1000, 1000);
+
+  //yawPID.SetMode(AUTOMATIC);
+  pitchPID.SetMode(AUTOMATIC);
+  rollPID.SetMode(AUTOMATIC);
 }
 
 void loop() {
   //get data
-  updateGyroStateVariables(gyroRate);
+  updateRotationVector(&rotationVector);
 
   //recompute PID axis
-  xAxisPID.Compute();
-  yAxisPID.Compute();
-
-  printStateVector(stateVector);
+  //yawPID.Compute();
+  pitchPID.Compute();
+  rollPID.Compute();
 
   //update stepper speeds 
-  updateStepperSpeeds(stateVector);
+  updateStepperSpeeds(&controlVector);
 }
