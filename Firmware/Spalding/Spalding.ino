@@ -14,11 +14,9 @@ motor from the z-axis. You choose this angle, but the microcontroller doesn't ca
 */
 
 #include <AccelStepper.h>
-#include <AFMotor.h>
-#include <MultiStepper.h>
 #include <PID_v1.h>
 #include <Wire.h>
-#include "SparkFun_BNO080_Arduino_Library.h"
+#include "ICM_20948.h"
 #include <math.h>
 
 //using theta = pi/4
@@ -30,9 +28,17 @@ motor from the z-axis. You choose this angle, but the microcontroller doesn't ca
 #define sqrt3 1.73205080757 
 
 /*--------------- State Variables -----------------*/
-struct eulerAngle{ double yaw; double pitch; double roll; };
-eulerAngle rotationVector;
-eulerAngle gyroRate;
+struct AGMT{  double accX; 
+              double accY; 
+              double accZ; 
+              double gyrX;
+              double gyrY;
+              double gyrZ;
+              double magX;
+              double magY;
+              double magZ;  
+              double temp;  };
+AGMT sensorAGMT;
 
 struct stateVector { double v_x; double v_y; double w_z; };
 stateVector controlVector;
@@ -40,65 +46,54 @@ stateVector controlVector;
 /*------------- Hardware Configuration ----------- */
 //Stepper motor configuration
 #define STEPS_PER_REV 200
+#define MICROSTEPPING 16
 #define STEPPER_MAX_SPEED 10000
-AccelStepper stepper1(1, 3, 2);
-AccelStepper stepper2(1, 5, 4);
-AccelStepper stepper3(1, 6, 7);
+AccelStepper stepper1(AccelStepper::DRIVER, 2, 5);
+AccelStepper stepper2(AccelStepper::DRIVER, 3, 6);
+AccelStepper stepper3(AccelStepper::DRIVER, 4, 7);
 
 //IMU configuration
-BNO080 IMU;
+ICM_20948_I2C IMU;
 
 struct PIDconfigContainer { 
-  double yawSetpoint = 0;
-  double pitchSetpoint = 0;
-  double rollSetpoint = 90;
-  double K_p = 600;
+  double yawRateSetpoint = 0;
+  double pitchRateSetpoint = 0;
+  double rollRateSetpoint = 0;
+  double K_p = 1;
   double K_i = 0;
   double K_d = 0;
 } PIDconfig;
 
 //Specify links and initial tuning parameters
-//PID yawPID  (&rotationVector.yaw,   &controlVector.w_z, &PIDconfig.yawSetpoint,   PIDconfig.K_p, PIDconfig.K_i, PIDconfig.K_d, DIRECT);
-PID pitchPID(&rotationVector.pitch, &controlVector.v_y, &PIDconfig.pitchSetpoint, PIDconfig.K_p, PIDconfig.K_i, PIDconfig.K_d, DIRECT);
-PID rollPID (&rotationVector.roll,  &controlVector.v_x, &PIDconfig.rollSetpoint,  PIDconfig.K_p, PIDconfig.K_i, PIDconfig.K_d, DIRECT);
+PID yawPID   (&sensorAGMT.gyrZ, &controlVector.w_z, &PIDconfig.yawRateSetpoint,   PIDconfig.K_p, PIDconfig.K_i, PIDconfig.K_d, DIRECT);
+PID pitchPID (&sensorAGMT.gyrY, &controlVector.v_y, &PIDconfig.pitchRateSetpoint, PIDconfig.K_p, PIDconfig.K_i, PIDconfig.K_d, DIRECT);
+PID rollPID  (&sensorAGMT.gyrX, &controlVector.v_x, &PIDconfig.rollRateSetpoint,  PIDconfig.K_p, PIDconfig.K_i, PIDconfig.K_d, DIRECT);
 
 
 /*------------- Wrapper Functions ----------- */
-void updateRotationVector(struct eulerAngle* rotationVector){
-  if(IMU.dataAvailable()){
-    float i = IMU.getQuatI();
-    float j = IMU.getQuatJ();
-    float k = IMU.getQuatK();
-    float r = IMU.getQuatReal();
-    float x; float y;
+void updateIMU(struct AGMT* newAGMT){
+  if(IMU.dataReady()){
+    IMU.getAGMT();
+    newAGMT->accX = IMU.accX();
+    newAGMT->accY = IMU.accY();
+    newAGMT->accZ = IMU.accZ();
 
-    /* YAW */ 
-    x = 2 * ((i * j) + (r * k)); 
-    y = square(r) - square(k) - square(j) + square(i); 
-    rotationVector->yaw = degrees(atan2(y, x));
+    newAGMT->gyrX = IMU.gyrX();
+    newAGMT->gyrY = IMU.gyrY();
+    newAGMT->gyrZ = IMU.gyrZ();
 
-    /* PITCH */ 
-    rotationVector->pitch = degrees(asin(-2 * (i * k - j * r)));
+    newAGMT->magX = IMU.magX();
+    newAGMT->magX = IMU.magX();
+    newAGMT->magX = IMU.magX();
 
-    /* ROLL */ 
-    x = 2 * ((j * k) + (i * r)); 
-    y = square(r) + square(k) - square(j) - square(i); 
-    rotationVector->roll = degrees(atan2(y , x));
+    newAGMT->temp = IMU.temp();
   }
 }
 
-void updateGyroRate(struct eulerAngle* angleVariable){
-  if(IMU.dataAvailable()){
-    angleVariable->yaw    =  IMU.getGyroX();
-    angleVariable->pitch  =  IMU.getGyroY();
-    angleVariable->roll   =  IMU.getGyroZ();
-  }
-}
-
-void updateStepperSpeeds(struct stateVector* controlVector){
-  double x = controlVector->v_x;
-  double y = -1*controlVector->v_y; //negative to compensate for the fact that the IMU's axes are orientented differently
-  double w_z = controlVector->w_z;
+void updateStepperSpeeds(struct stateVector controlVector){
+  double x = controlVector.v_x;
+  double y = controlVector.v_y; //negative to compensate for the fact that the IMU's axes are orientented differently
+  double w_z = controlVector.w_z;
 
   double stepperSpeeds[3];
   stepperSpeeds[0] = (-2*x*csc_theta - w_z*ball_radius*sec_theta)/(3*wheel_radius);
@@ -114,13 +109,25 @@ void updateStepperSpeeds(struct stateVector* controlVector){
   stepper3.runSpeed();
 }
 
-void printControlVector(struct stateVector* controlVector){
-  Serial.print("ControlVector: v_x: ");
-  Serial.print(controlVector->v_x);
-  Serial.print("  v_y: ");
-  Serial.print(controlVector->v_y);
-  Serial.print("  ω_Z: ");
-  Serial.print(controlVector->w_z);
+void printControlVector(struct stateVector controlVector){
+  //Serial.print("ControlVector: v_x: ");
+  Serial.print(controlVector.v_x);
+  //Serial.print("  v_y: ");
+  Serial.print(", ");
+  Serial.print(controlVector.v_y);
+  //Serial.print("  ω_Z: ");
+  Serial.print(", ");
+  Serial.print(controlVector.w_z);
+  Serial.println();
+}
+
+void printGyroVector(struct AGMT currentAGMT){
+  Serial.print("AGMT: gyr_x: ");
+  Serial.print(currentAGMT.gyrX);
+  Serial.print("  gyr_y: ");
+  Serial.print(currentAGMT.gyrY);
+  Serial.print("  gyr_z: ");
+  Serial.print(currentAGMT.gyrZ);
   Serial.println();
 }
 
@@ -131,8 +138,18 @@ void setup() {
   Wire.begin();
   Wire.setClock(400000);
 
-  IMU.begin();
-  IMU.enableRotationVector(10);
+  bool IMU_initialized = false;
+  while (!IMU_initialized) {
+    IMU.begin(Wire, 1);
+
+    if (IMU.status != ICM_20948_Stat_Ok) {
+      delay(500);
+    }
+
+    else {
+      IMU_initialized = true;
+    }
+  }
 
   //set all the max motor speeds
   stepper1.setMaxSpeed(STEPPER_MAX_SPEED);	
@@ -140,24 +157,27 @@ void setup() {
   stepper3.setMaxSpeed(STEPPER_MAX_SPEED);
 
   //turn on PID
-  //yawPID.SetOutputLimits(-1000, 1000);
+  yawPID.SetOutputLimits(-1000, 1000);
   pitchPID.SetOutputLimits(-1000, 1000);
   rollPID.SetOutputLimits(-1000, 1000);
 
-  //yawPID.SetMode(AUTOMATIC);
+  yawPID.SetMode(AUTOMATIC);
   pitchPID.SetMode(AUTOMATIC);
   rollPID.SetMode(AUTOMATIC);
 }
 
 void loop() {
   //get data
-  updateRotationVector(&rotationVector);
+  updateIMU(&sensorAGMT);
 
   //recompute PID axis
-  //yawPID.Compute();
+  yawPID.Compute();
   pitchPID.Compute();
   rollPID.Compute();
 
   //update stepper speeds 
-  updateStepperSpeeds(&controlVector);
+  updateStepperSpeeds(controlVector);
+  printControlVector(controlVector);
+  //printGyroVector(sensorAGMT);
+  delay(2);
 }
